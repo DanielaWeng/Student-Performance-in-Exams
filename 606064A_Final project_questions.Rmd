@@ -1,0 +1,221 @@
+### Final Project : Student Performance in Exams
+
+#### MATH60604A - Statistical Modelling
+#### Submitted to : Prof. Juliana Schulz
+
+##### Presented by:
+###### Zihang Cai - 11319479
+###### Helen Ma - 11313446
+###### Jiahua Shang - 11319456
+###### Danni Weng - 11304053
+_______________________________________
+
+
+### Introduction  
+
+Consider the "exams.csv" data (from https://www.kaggle.com/datasets/whenamancodes/students-performance-in-exams). The dataset includes test scores from 1000 kids in reading, writing, and math, as well as some additional data about the students. The following variables are included in the file:
+
+Variable                         Description  
+-------------------------------- -------------- 
+gender                           Female or Male      
+race.ethnicity                   Race/Ethnicity group A, B, C, D, E    
+parental.level.of.education      Parents' education level: some high school, some college, high school, associate's degree, bachelor's degree, master's degree
+lunch                            Student's meal plan: reduced/free or standard
+test.preparation.course          Indicator if the student took the preparation course prior to the test (completed or none)
+math.score                       Test score in math
+reading.score                    Test score in reading
+writing.score                    Test score in writing
+
+```{r,echo=FALSE}
+setwd("~/Documents/HEC Fall 2022/MATH 60604 - Statistical Modelling/Final project")
+raw_data<-read.csv("Data/exams.csv")
+
+summary(raw_data)
+```
+_______________________________________
+
+### Data Exploration
+
+From the summary above, the dataset is fairly structured and does not contain any NULL rows at a first glance. We will now explore each variable more in details.  
+
+#### Score
+From the summary, we can see that the data contains three numeric variables of scores for each subject : `math.score`, `reading.score` and `writing.score`. All variables are capped at a maximum score of 100% and this seem coherent. The mean score in math, reading and writing are 66.4%, 69% and 67.74% respectively and for the purpose of this analysis, we will be creating a new variable `avg_score`, which is the average of the three score of three scores as the response variable.   
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(freqdist)
+library(gridExtra)
+
+summary(raw_data[,(6:8)])
+m=ggplot(raw_data, aes(y=math.score))+geom_boxplot() + ggtitle("Math Score")
+r=ggplot(raw_data, aes(y=reading.score))+geom_boxplot() + ggtitle("Reading Score")
+w=ggplot(raw_data, aes(y=writing.score))+geom_boxplot() + ggtitle("Writing Score")
+grid.arrange(m,r,w, nrow=1, ncol=3)
+```  
+
+The code to create the new variable `avg_score` is shown below: 
+```{r}
+data<-raw_data[,1:5]
+#create new variable Avg Score
+data$avg_score<-(raw_data$math.score+raw_data$reading.score+raw_data$writing.score)/3
+``` 
+
+The variable `avg_score` ranges from a minimum score of 21.67% to maximum score of 100%. From boxplot, the data points seem to be distributed nicely in this range as the median is fairly close to the mean value. Moreover, the upper quartile at 58.6% and lower quartile at 78.3% seem to be roughly symmetric distance from the median, which seems like a plausible distribution for students tests scores. There are a few points that may be further away from the center (scores of 20%-30%), but they do not seem too problematic.  
+
+```{r,echo=FALSE}
+summary(data)
+ggplot(data, aes(y=avg_score))+geom_boxplot() + ggtitle("Average Score")
+```  
+
+#### Gender   
+The variable `Gender` is a categorical variable with two levels : Female or Male. There are 483 observations of female students and 517 observations of male students in the dataset. This distribution seem to be balanced between both genders. When analyzing the average scores by gender, we can observe that the score distribution seem slightly higher for female students, but the differences are slight. Moreover, the lowest scores noticed earlier seem to belong to female students.   
+
+```{r,echo=FALSE}
+freqdist(data$gender)
+ggplot(data, aes(y=avg_score, x=gender ,fill=gender))+geom_boxplot() + ggtitle("Students' Average Score by Gender")
+```  
+
+#### Race/Ethnicity   
+The variable `Race/Ethnicity` is a categorical variable grouped into five levels : group A, B, C, D and E. From the frequency table, we can observe that there's an uneven distribution of observations among ethnicity group: Group C represents the largest proportion at 32.3% and group C only represents 7.9% of total observations. Given that we know the actual distribution of students population data, it could be possible that this dataset has an under-representation of Group A and over-representation of group C, which we have to keep in mind when drawing any conclusions or interpretations later.   
+
+```{r,echo=FALSE}
+data$race.ethnicity<-relevel(as.factor(data$race.ethnicity),ref="group A")
+freqdist(data$race.ethnicity)
+ggplot(data, aes(y=avg_score, x=race.ethnicity,fill=race.ethnicity))+geom_boxplot() + ggtitle("Students' Average Score by Race/Ethnicity")
+```  
+
+#### Parent's education level
+The variable `Parental.level.of.education` is a categorical variable grouped into six levels : some high school, high school, some college, associate's degree, bachelor's degree and master's degree. From the frequency table, we can observe that the distributions of observations are roughly similar for each group, except for the higher levels of education (bachelor and master's degree). Given that this variable has somewhat a ordinal structure (for example, a high school diploma is lower education level than a college degree, which is lower than a master degree), we decide to group adjacent levels of educations levels together and condensed them into three levels.   
+
+```{r,echo=FALSE}
+freqdist(data$parental.level.of.education)
+ggplot(data, aes(y=avg_score, x=parental.level.of.education,fill=parental.level.of.education))+geom_boxplot() + ggtitle("Students' Average Score by Parents' Education Level")
+
+```
+
+Therefore, a new variable `parent_educ` will be created with three levels:  
+1: high school and some high school  
+2: some college and associate's degree  
+3: bachelor's and master's degree   
+
+```{r}
+data$parent_educ <- data$parental.level.of.education
+levels(data$parent_educ) <- list("1" = c("high school", "some high school"),
+                                  "2" = c("some college", "associate's degree"),
+                                  "3" = c("bachelor's degree", "master's degree"))
+data$parent_educ<-relevel(as.factor(data$parent_educ),ref="1")
+```
+
+
+The new categories are distributed as follows:
+```{r,echo=FALSE}
+freqdist(data$parent_educ)
+ggplot(data, aes(y=avg_score, x=parent_educ,fill=parent_educ))+geom_boxplot() + ggtitle("Students' Average Score by Parents' Education Level")
+```
+
+#### Lunch Meal Plan  
+The variable `Lunch` is a categorical variable with two levels describing the option of lunch plan the student has selected at school. The first option is the free or reduced meal plan and the other alternative is the standard meal plan. Looking at the distribution of observations, it consists of 34.8% of the "free/reduced" plan and 65.2% observations of standard lunch plan. Again, the standard plan seem to be slightly over-represented in this data set. When looking at the plot of average scores by lunch plan selected, it seems to suggest that students who selected the standard lunch plan tend to score higher than students who selected the reduced plan, but additional investigation is required to assess whether this difference is statistically significant.  
+
+```{r,echo=FALSE}
+freqdist(data$lunch)
+ggplot(data, aes(y=avg_score, x=lunch,fill=lunch))+geom_boxplot() + ggtitle("Students' Average Score by Lunch Plan")
+```
+
+#### Test preparation course
+The last variable is an indicator variable flagging whether or not the student has completed the test preparation course prior to the exam. Looking at the distribution of data, it seems that only 33.5% of students in the dataset have completed the preparation course. We will recode this variable to take value 1 if the student has completed the preparation course and value 0 otherwise. 
+
+```{r,echo=FALSE}
+freqdist(data$test.preparation.course)
+ggplot(data, aes(y=avg_score, x=test.preparation.course,fill=test.preparation.course))+geom_boxplot() + ggtitle("Students' Writing Score by Completion of Preparation Course")
+```
+
+```{r}
+#Changing indicator variable for test preparation course, if completed = 1, otherwise 0
+data$prep_course<-as.factor(ifelse(data$test.preparation.course=="completed", 1,0))
+```
+
+----------------------------------
+
+### Final data
+
+Following all the modification to the raw data above, the final dataset contains the following variables. 
+```{r}
+mydata<-data[,c(6,1,2,7,4,8)]
+summary(mydata)
+#write.csv(mydata,"Data/exam_final.csv")
+```
+
+Variable                         Description  
+-------------------------------- -------------- 
+avg_score                        Average score in math, reading and writing
+gender                           Female or Male      
+race.ethnicity                   Race/Ethnicity group A, B, C, D, E    
+parent_educ                      Parents' education level: 1: some high school/high school, 2:some college/associate's degree, 3:bachelor's degree/master's degree
+lunch                            Student's meal plan: reduced/free or standard
+prep course                      Indicator if the student took the preparation course prior to the test (1 if completed, 0 otherwise)
+
+----------------------------------
+
+### Question 1 
+
+We would like to investigate the factors influencing a student's score. Beginning by fitting a linear regression with all variables to the response variable `avg_score`.   
+
+a. Provide the fitted model (group A as reference level of race.ethnicity; some high school as reference level of parent_educ), and check whether 'avg_score' is well explained by this model.     
+
+
+b. Is race.ethnicity globally significant? Compare group C to group A and interpret the differences found?   
+
+
+c. Fit a new linear model including an interaction between*** `gender` and `lunch` and all other variables as well and provide the fitted model. Then justify whether the lunch type influences the effect of gender on average score significantly.    
+
+
+d. Formally test if the interpretations to above questions are valid. Carry a residual analysis of the model in part a) and comment on the results.  
+
+
+----------------------------------
+
+### Question 2 
+
+Let's say we decide that a student passes the "exam" if their combined average across all three subjects is higher than 60%. For the sake of simplicity, we will refer to the combination of all three subjects as the "exam." Create an indicator variable `Pass`, which takes value 1 if the student's average score is above 60% and value 0 if below (indicating that he failed). We are now interested to examine the chances that the student will pass the exam. 
+
+a) Begin by fit a logistic regression that includes only the variable*** `Prep_Course`***. Use students who have not completed the preparation course as the reference level.   
+    
+    i) Provide the fitted model on the log-odds scale and probability scale.    
+    
+    ii) Interpret all of the regression coefficients on an appropriate scale. What is the estimated probability of passing the exam when a student has not completed the preparation course? What about for a student who have completed the preparation course?   
+    
+    iii) A student is unsure if enrolling in the preparation course will actually improve his chances of passing the test. Based on the results, what would you recommend? Support your explanation with a statistical test.
+
+
+b) Suppose that now we are interested to investigate the number of subject that a student passes, using the same threshold of 60%. Create an indicator variable `total_pass`, which counts the number of subjects in which he receives a grade of 60% or more. We are now interested to examine the number of school subjects each student passes.
+
+    i) Fit a Poisson regression model using the variables `Gender`, `Race.Ethnicity`, `Parent_Educ`, `Lunch` and `Prep_course`. Provide the fitted model on the mean scale.   
+    
+    ii) Give an interpretation of the intercept in model. 
+    
+    iii) Assess the global significance of the variable `Parent_Educ` in the model.   
+    
+    iv) Discuss in a few sentences the main assumptions differences between a Poisson and Quasi-Poisson model. What are the benefits or drawbacks of using a Quasi-Poisson model instead of the Poisson model.
+
+c. Repeat b) with a Negative Binomial regression model this time. 
+
+    i) Compare the Poisson model to the Negative Binomial using a proper statistical test. Would the Poisson model be an adequate simplification of the Negative Binomial model?   
+    
+    ii) Use the AIC and BIC criterion to compare the Poisson model and Negative Binomial now. Which model is selected by each criterion?  
+  
+  
+----------------------------------
+
+### Question 3  
+
+
+Consider the distribution Weibull $f(x) = \frac{k}{\lambda}(\frac x\lambda)^{k-1}exp(-(\frac{x}{\lambda})^k), where$  $x\ge 0; \lambda,k\gt0$
+
+a. Write an expression for the likelihood function.   
+
+b. Write an expression for the log-likelihood function.  
+
+c. What is the maximum likelihood estimator for*** $k,\lambda$ ? 
+
+

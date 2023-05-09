@@ -1,0 +1,592 @@
+### Final Project : Student Performance in Exams
+
+#### MATH60604A - Statistical Modelling
+#### Submitted to : Prof. Juliana Schulz
+
+##### Presented by:
+###### Zihang Cai - 11319479
+###### Helen Ma - 11313446
+###### Jiahua Shang - 11319456
+###### Danni Weng - 11304053
+_______________________________________
+
+
+### Introduction  
+
+Consider the "exams.csv" data (from https://www.kaggle.com/datasets/whenamancodes/students-performance-in-exams). The dataset includes test scores from 1000 kids in reading, writing, and math, as well as some additional data about the students. The following variables are included in the file:
+
+Variable                         Description  
+-------------------------------- -------------- 
+gender                           Female or Male      
+race.ethnicity                   Race/Ethnicity group A, B, C, D, E    
+parental.level.of.education      Parents' education level: some high school, some college, high school, associate's degree, bachelor's degree, master's degree
+lunch                            Student's meal plan: reduced/free or standard
+test.preparation.course          Indicator if the student took the preparation course prior to the test (completed or none)
+math.score                       Test score in math
+reading.score                    Test score in reading
+writing.score                    Test score in writing
+
+```{r,echo=FALSE}
+setwd("~/Documents/HEC Fall 2022/MATH 60604 - Statistical Modelling/Final project")
+raw_data<-read.csv("Data/exams.csv")
+
+summary(raw_data)
+```
+_______________________________________
+
+### Data Exploration
+
+From the summary above, the dataset is fairly structured and does not contain any NULL rows at a first glance. We will now explore each variable more in details.  
+
+#### Score
+From the summary, we can see that the data contains three numeric variables of scores for each subject : `math.score`, `reading.score` and `writing.score`. All variables are capped at a maximum score of 100% and this seem coherent. The mean score in math, reading and writing are 66.4%, 69% and 67.74% respectively and for the purpose of this analysis, we will be creating a new variable `avg_score`, which is the average of the three score of three scores as the response variable.   
+
+```{r,echo=FALSE,warning=FALSE,message=FALSE}
+library(dplyr)
+library(ggplot2)
+library(freqdist)
+library(gridExtra)
+
+summary(raw_data[,(6:8)])
+m=ggplot(raw_data, aes(y=math.score))+geom_boxplot() + ggtitle("Math Score")
+r=ggplot(raw_data, aes(y=reading.score))+geom_boxplot() + ggtitle("Reading Score")
+w=ggplot(raw_data, aes(y=writing.score))+geom_boxplot() + ggtitle("Writing Score")
+grid.arrange(m,r,w, nrow=1, ncol=3)
+```  
+
+The code to create the new variable `avg_score` is shown below: 
+```{r}
+data<-raw_data[,1:5]
+#create new variable Avg Score
+data$avg_score<-(raw_data$math.score+raw_data$reading.score+raw_data$writing.score)/3
+``` 
+
+The variable `avg_score` ranges from a minimum score of 21.67% to maximum score of 100%. From boxplot, the data points seem to be distributed nicely in this range as the median is fairly close to the mean value. Moreover, the upper quartile at 58.6% and lower quartile at 78.3% seem to be roughly symmetric distance from the median, which seems like a plausible distribution for students tests scores. There are a few points that may be further away from the center (scores of 20%-30%), but they do not seem too problematic.  
+
+```{r,echo=FALSE}
+summary(data)
+ggplot(data, aes(y=avg_score))+geom_boxplot() + ggtitle("Average Score")
+```  
+
+#### Gender   
+The variable `Gender` is a categorical variable with two levels : Female or Male. There are 483 observations of female students and 517 observations of male students in the dataset. This distribution seem to be balanced between both genders. When analyzing the average scores by gender, we can observe that the score distribution seem slightly higher for female students, but the differences are slight. Moreover, the lowest scores noticed earlier seem to belong to female students.   
+
+```{r,echo=FALSE}
+freqdist(data$gender)
+ggplot(data, aes(y=avg_score, x=gender ,fill=gender))+geom_boxplot() + ggtitle("Students' Average Score by Gender")
+```  
+
+#### Race/Ethnicity   
+The variable `Race/Ethnicity` is a categorical variable grouped into five levels : group A, B, C, D and E. From the frequency table, we can observe that there's an uneven distribution of observations among ethnicity group: Group C represents the largest proportion at 32.3% and group C only represents 7.9% of total observations. Given that we know the actual distribution of students population data, it could be possible that this dataset has an under-representation of Group A and over-representation of group C, which we have to keep in mind when drawing any conclusions or interpretations later.   
+
+```{r,echo=FALSE}
+data$race.ethnicity<-relevel(as.factor(data$race.ethnicity),ref="group A")
+freqdist(data$race.ethnicity)
+ggplot(data, aes(y=avg_score, x=race.ethnicity,fill=race.ethnicity))+geom_boxplot() + ggtitle("Students' Average Score by Race/Ethnicity")
+```  
+
+#### Parent's education level
+The variable `Parental.level.of.education` is a categorical variable grouped into six levels : some high school, high school, some college, associate's degree, bachelor's degree and master's degree. From the frequency table, we can observe that the distributions of observations are roughly similar for each group, except for the higher levels of education (bachelor and master's degree). Given that this variable has somewhat a ordinal structure (for example, a high school diploma is lower education level than a college degree, which is lower than a master degree), we decide to group adjacent levels of educations levels together and condensed them into three levels.   
+
+```{r,echo=FALSE}
+freqdist(data$parental.level.of.education)
+ggplot(data, aes(y=avg_score, x=parental.level.of.education,fill=parental.level.of.education))+geom_boxplot() + ggtitle("Students' Average Score by Parents' Education Level")
+
+```
+
+Therefore, a new variable `parent_educ` will be created with three levels:  
+1: high school and some high school  
+2: some college and associate's degree  
+3: bachelor's and master's degree   
+
+```{r}
+data$parent_educ <- data$parental.level.of.education
+levels(data$parent_educ) <- list("1" = c("high school", "some high school"),
+                                  "2" = c("some college", "associate's degree"),
+                                  "3" = c("bachelor's degree", "master's degree"))
+data$parent_educ<-relevel(as.factor(data$parent_educ),ref="1")
+```
+
+
+The new categories are distributed as follows:
+```{r,echo=FALSE}
+freqdist(data$parent_educ)
+ggplot(data, aes(y=avg_score, x=parent_educ,fill=parent_educ))+geom_boxplot() + ggtitle("Students' Average Score by Parents' Education Level")
+```
+
+#### Lunch Meal Plan  
+The variable `Lunch` is a categorical variable with two levels describing the option of lunch plan the student has selected at school. The first option is the free or reduced meal plan and the other alternative is the standard meal plan. Looking at the distribution of observations, it consists of 34.8% of the "free/reduced" plan and 65.2% observations of standard lunch plan. Again, the standard plan seem to be slightly over-represented in this data set. When looking at the plot of average scores by lunch plan selected, it seems to suggest that students who selected the standard lunch plan tend to score higher than students who selected the reduced plan, but additional investigation is required to assess whether this difference is statistically significant.  
+
+```{r,echo=FALSE}
+freqdist(data$lunch)
+ggplot(data, aes(y=avg_score, x=lunch,fill=lunch))+geom_boxplot() + ggtitle("Students' Average Score by Lunch Plan")
+```
+
+#### Test preparation course
+The last variable is an indicator variable flagging whether or not the student has completed the test preparation course prior to the exam. Looking at the distribution of data, it seems that only 33.5% of students in the dataset have completed the preparation course. We will recode this variable to take value 1 if the student has completed the preparation course and value 0 otherwise. 
+
+```{r,echo=FALSE}
+freqdist(data$test.preparation.course)
+ggplot(data, aes(y=avg_score, x=test.preparation.course,fill=test.preparation.course))+geom_boxplot() + ggtitle("Students' Writing Score by Completion of Preparation Course")
+```
+
+```{r}
+#Changing indicator variable for test preparation course, if completed = 1, otherwise 0
+data$prep_course<-as.factor(ifelse(data$test.preparation.course=="completed", 1,0))
+```
+
+----------------------------------
+
+### Final data
+
+Following all the modification to the raw data above, the final dataset contains the following variables. 
+```{r}
+mydata<-data[,c(6,1,2,7,4,8)]
+summary(mydata)
+#write.csv(mydata,"Data/exam_final.csv")
+```
+
+Variable                         Description  
+-------------------------------- -------------- 
+avg_score                        Average score in math, reading and writing
+gender                           Female or Male      
+race.ethnicity                   Race/Ethnicity group A, B, C, D, E    
+parent_educ                      Parents' education level: 1: some high school/high school, 2:some college/associate's degree, 3:bachelor's degree/master's degree
+lunch                            Student's meal plan: reduced/free or standard
+prep course                      Indicator if the student took the preparation course prior to the test (1 if completed, 0 otherwise)
+
+----------------------------------
+
+### Question 1 
+
+We would like to investigate the factors influencing a student's score. Beginning by fitting a linear regression with all variables to the response variable `avg_score`.   
+
+***a. Provide the fitted model (group A as reference level of race.ethnicity; some high school as reference level of parent_educ), and check whether 'avg_score' is well explained by this model.***      
+```{r}
+## Make categorical variables and relevel
+mydata1<-mydata
+mydata1$race.ethnicity<-relevel(as.factor(mydata1$race.ethnicity),ref=1)
+mydata1$parent_educ<-relevel(as.factor(mydata1$parent_educ),ref=1)
+mydata1$lunch<-as.factor(mydata1$lunch)
+mydata1$prep_course<-as.factor(mydata1$prep_course)
+
+## Linear regression on all variables
+mod1a<-lm(avg_score~.,data=mydata1)
+summary(mod1a)
+```
+
+According to the output, the fitted model can be expressed as:  
+
+$\hat{avgscore}=53.9983-2.4922gender_{male}-0.6441race.ethnicity_{group B}-0.5632race.ethnicity_{group C}+5.4746race.ethnicity_{group D}\\+8.3747ace.ethnicity_{group E}+4.5701parenteduc_{2}+9.3658parenteduc_{3}+ 10.2843lunch_{standard}+7.2610prepcourse$  
+
+The value of $R^2$ is 0.2891 and adjusted $R^2$ is 0.2827, which indicates that this model explains only 28-29% of the total variation. Since $R^2=(SST-SSE)/SST=SSR/SST$ and $SST=SSE+SSR$, it shows that the $SSR<SSE$ and suggests that this model poorly explain the variation in the response variable avg_score.  
+
+***b. Is race.ethnicity globally significant? Compare group C to group A and interpret the differences found?***   
+
+```{r,warning=FALSE,message=FALSE}
+library(car)
+## To do a global effect test
+Anova(mod1a,type=3)
+```
+
+For variable race.ethnicity, to carry out a global test, we set:  
+
+$H_0:\beta_{race.ethnicitygroup B}=\beta_{race.ethnicitygroup C}=\beta_{race.ethnicitygroup D}=\beta_{race.ethnicitygroup E}=0$  
+
+$H_1$: at least one of $\beta_{race.ethnicitygroup B}$ or $\beta_{race.ethnicitygroup C}$ or $\beta_{race.ethnicitygroup D}$ or $\beta_{race.ethnicitygroup E}$ $\neq 0$  
+
+According to the output, we can find the F-value (20.230) and p-value ($4.943*10^{-16}$) of race.ethnicity is smaller than any reasonable $\alpha$ , then we can reject $H_0$. Therefore, variable race.ethnicity is globally significant in this model.  
+
+According the summary table given in part a), the estimated coefficient $\hat\beta_{race.ethnicitygroup C}=-0.5632$. It indicates that, on average, the differences in average score of race/ethnicity group A and group C is -0.5632 marks, holding all other variables constant.  
+
+
+***c. Fit a new linear model including an interaction between*** `gender` ***and*** `lunch` ***and all other variables as well and provide the fitted model. Then justify whether the lunch type influences the effect of gender on average score significantly.***  
+
+```{r}
+## Fit a new model
+mod1c<-lm(avg_score~gender*lunch+race.ethnicity+parent_educ+prep_course,data=mydata1)
+summary(mod1c)
+```
+According to the output, the fitted model can be expressed as:  
+
+$\hat{avgscore}=54.4737-3.3697gender_{male}-0.6848race.ethnicity_{group B}-0.5846race.ethnicity_{group C}+\\5.4350race.ethnicity_{group D}+8.3986race.ethnicity_{group E}+4.5919parenteduc_{2}+9.4021parenteduc_{3}+  9.5815lunch_{standard}\\+7.2704prepcourse+gender_{male}*lunch_{standard}$  
+
+To find whether lunch type influences the effect of gender on score, we can check if interaction is significant, since these two variables are binary, a hypothesis test can be set as:  
+
+$H_0$: $\beta_{gendermale*lunchstandard}=0$   
+
+$H_1$: $\beta_{gendermale*lunchstandard}\neq0$  
+
+From the output, the result of the test statistic is T=0.815 with a corresponding p-value of 0.41540 which is greater than any reasonable $\alpha$ thus we cannot reject null hypothesis; therefore we cannot conclude that lunch influences the effect of gender significantly.  
+
+***d. Formally test if the interpretations to above questions are valid. Carry a residual analysis of the model in part a) and comment on the results.***  
+
+In order to avoid biased estimates and to ensure that any prior findings about the variable effects are accurate, it is necessary to confirm that the model assumptions are respected.
+
+The linear regression model relies on the assumptions that:  
+1. the error terms are independent random variables  
+2. the error terms have mean zero  
+3. the error terms have constant variance (homoscedasticity)  
+4. the error terms follow a normal distribution  
+
+First, to verify the normality of the residuals, a histogram and qq-plot will be used.  
+
+```{r, results="hide"}
+#Adding the residual and fitted values to the dataset for analysis
+resid<-rstudent(mod1a)
+fitted<-mod1a$fitted.values
+res.dat<-cbind(mydata1,fitted,resid)
+head(res.dat)
+```
+
+```{r,echo=FALSE}
+#creating a histogram to check normality of the residuals
+ggplot(data = res.dat, mapping = aes(x = resid)) +
+  geom_density() +
+  geom_histogram(aes(y = ..density..), bins = 25, alpha = 0.5) +
+  xlab("residuals")
+
+#qq plot to compare theoretical quantiles and empirical quantiles (checking for normality)
+ggplot(data = res.dat, mapping = aes(sample = resid)) +
+  stat_qq(distribution = qt, dparams = mod1a$df.residual) +
+  stat_qq_line(distribution = qt, dparams = mod1a$df.residual) +
+  labs(x = "theoretical quantiles",
+       y = "empirical quantiles") +
+  ggtitle("QQ-Plot Studentized Residuals")
+```
+
+As can be seen from the histogram, the overall shape does resemble a bell-shaped curve. The distribution of the residuals appears to be grouped around the center of the plot, around 0, and is roughly symmetrical on both sides, but slightly skewed to the left.  
+
+Looking at the qq-plot, if both sets of quantiles came from the same distribution, the qq-plot should show points forming an approximately straight line. It seems that there's good alignment between the theoretical and empirical quantiles except for the tails, where we can observe more deviation. Despite these concerns, the fit does not appear to be too problematic, indicating that the normality assumption of residuals is reasonable.   
+
+Next, we will create a plot of the residuals against each variable used in the model in order to verify if the model is correctly specify and homogeneity of variance. A boxplot will be generated for `gender`, `race.ethnicity`, `parent_educ`, `lunch` and `prep_course` since they are categorical variables.   
+
+```{r,echo=FALSE}
+# resid vs. gender
+gender_plot<-ggplot(res.dat, aes(x=gender, y=resid)) +
+  geom_boxplot() +
+  labs(title="Residuals",x="gender", y = "residuals")
+gender_resid<-tapply(res.dat$resid,as.factor(res.dat$gender),function(x) c(mean(x),var(x)) )
+
+# resid vs. race.ethnicity
+race_plot<-ggplot(res.dat, aes(x=race.ethnicity, y=resid)) +
+  geom_boxplot() +
+  labs(title="Residuals",x="Race/Ethnicity", y = "residuals")
+race_resid<-tapply(res.dat$resid,as.factor(res.dat$race.ethnicity),function(x) c(mean(x),var(x)) )
+
+# resid vs. parent_educ
+parent_plot<-ggplot(res.dat, aes(x=parent_educ, y=resid)) +
+  geom_boxplot() +
+  labs(title="Residuals",x="Parents' Education", y = "residuals")
+parent_resid<-tapply(res.dat$resid,as.factor(res.dat$parent_educ),function(x) c(mean(x),var(x)) )
+
+# resid vs. lunch
+lunch_plot<-ggplot(res.dat, aes(x=lunch, y=resid)) +
+  geom_boxplot() +
+  labs(title="Residuals",x="Lunch Plan", y = "residuals")
+lunch_resid<-tapply(res.dat$resid,as.factor(res.dat$lunch),function(x) c(mean(x),var(x)) )
+
+# resid vs. prep_course
+prep_plot<-ggplot(res.dat, aes(x=prep_course, y=resid)) +
+  geom_boxplot() +
+  labs(title="Residuals",x="Preparation Course", y = "residuals")
+prep_resid<-tapply(res.dat$resid,as.factor(res.dat$prep_course),function(x) c(mean(x),var(x)) )
+
+grid.arrange(gender_plot,race_plot,parent_plot,lunch_plot,prep_plot, nrow=2, ncol=3)
+```
+
+```{r}
+gender_resid
+race_resid
+parent_resid
+lunch_resid
+prep_resid
+```
+
+The boxplots generated for all variables seem favorable. The spread of the boxplots shows that most values are clustered around the mean, which is close to 0 for all levels of the variables. Moreover, the first and last quartiles are roughly equidistant from the median, suggesting a symmetrical distribution and further supporting the assumption of constant variance.
+
+Given that, the T-test was employed to draw some conclusions earlier, we will also be verifying that the assumption of constant variance among the groups is respected.  
+
+```{r}
+var.test(avg_score~gender,data=mydata1,alternative="two.sided")
+```
+
+For the variable `gender`, we are testing whether the variance between the two levels (female and male) are equal, that is:   
+$H_0: \sigma^2_{gender female}=\sigma^2_{gender male}$   
+$H_1: \sigma^2_{gender female}\not=\sigma^2_{gender male}$   
+
+We obtain a test statistic of F = 1.0693 (with corresponding df1=482, df2=516) and a p-value of 0.4537, which is greater than any reasonable $\alpha$. Thus we fail to reject $H_0$ and conclude that the variances between the two groups are not significantly different. As a result, the assumption of constant variance between the two groups (female and male) seems valid.   
+
+```{r}
+var.test(avg_score~lunch,data=mydata1,alternative="two.sided")
+```
+
+For the variable `lunch`, we are testing whether the variance between the two levels (free/reduced and standard lunch plabn) are equal, that is:  
+$H_0: \sigma^2_{lunch free/reduced}=\sigma^2_{lunch standard}$  
+$H_1: \sigma^2_{lunch free/reduced}\not=\sigma^2_{lunch standard}$  
+
+We obtain a test statistic of F = 1.1561 (with corresponding df1=347, df2=651) and a p-value of 0.1181, which is greater than $\alpha=0.1$. Thus, at a significance level of $\alpha=0.1$, we fail to reject $H_0$ and conclude that the variances between the two groups are not significantly different. As a result, the assumption of constant variance between the two groups (free/reduced and standard lunch plan) seems valid.  
+
+```{r}
+var.test(avg_score~prep_course,data=mydata1,alternative="two.sided")
+```
+
+For the variable `prep_course`, we are testing whether the variance between the two levels (completed vs not completed the preparation course) are equal, that is:  
+$H_0: \sigma^2_{PrepCourse0}=\sigma^2_{PrepCourse1}$  
+$H_1: \sigma^2_{PrepCourse0}\not=\sigma^2_{PrepCourse1}$  
+
+We obtain a test statistic of F = 1.0893 (with corresponding df1=664, df2=334) and a p-value of 0.3754, which is greater than any reasonable $\alpha$. Thus, we fail to reject $H_0$ and conclude that the variances between the two groups are not significantly different. As a result, the assumption of constant variance between the two groups (completed vs not completed the preparation course) seems valid.  
+
+```{r}
+# test: equality of variances (more than 2 levels)
+bartlett.test(avg_score~race.ethnicity,data=mydata1)
+
+```
+
+For the variable `race.ethnicity`, we are testing whether the variance across the five levels (group A,B,C,D and E) are equal using Barlett test, that is:   
+$H_0: \sigma^2_{RaceEthnicityA}=\sigma^2_{RaceEthnicityB}=\sigma^2_{RaceEthnicityC}=\sigma^2_{RaceEthnicityD}=\sigma^2_{RaceEthnicityE}$   
+$H_1:$ at least two variances differ  
+
+We obtain a test statistic of 2.1471 (with corresponding df=4) and a p-value of 0.7087, which is greater than any reasonable $\alpha$. Thus, we fail to reject $H_0$ and conclude that the variances across the groups are not significantly different. As a result, the assumption of constant variance among levels of races/ethnicity seems valid.   
+
+```{r}
+bartlett.test(avg_score~parent_educ,data=mydata1)
+```
+
+For the variable `parent_educ`, we are testing whether the variance among the three levels (1,2 and 3) are equal using Barlett test, that is:   
+$H_0: \sigma^2_{ParentEduc1}=\sigma^2_{ParentEduc2}=\sigma^2_{ParentEduc3}$   
+$H_1:$ at least two variances differ  
+
+We obtain a test statistic of 0.74271 (with corresponding df=2) and a p-value of 0.6898, which is greater than any reasonable $\alpha$. Thus, we fail to reject $H_0$ and conclude that the variances across the groups are not significantly different. As a result, the assumption of constant variance among levels of parents' education seems valid.   
+
+
+Finally, the residuals vs. fitted values of the response variable `avg_score` will be explored.  
+
+```{r}
+ggplot(data = res.dat,
+       aes(x = fitted, y = resid)) +
+  geom_point() +
+  geom_smooth() +
+  theme(legend.position = "bottom") +
+  ylab("residuals") +
+  xlab("fitted values") 
+```   
+
+
+From the plot, we can observe that the points are roughly symmetrically distributed (around the same magnitude acrosss the x-axis) and appears to be clustered towards the middle of the plot. It is arguable that some trends can be observe around both ends of the plot. However, if we focus on the interval $\hat{y}\in [60,80]$ where bulk of the data is, the residual plot seems very plausible and does not indicate any obvious signs of heteroscedasticity in general.  
+
+In conclusion, the residual analysis findings show that the T-test and assumption of the linear regression model seem to hold, supporting the interpretations and conclusions drawn before.  
+
+
+----------------------------------
+
+### Question 2 
+
+Let's say we decide that a student passes the "exam" if their combined average across all three subjects is higher than 60%. For the sake of simplicity, we will refer to the combination of all three subjects as the "exam." Create an indicator variable `Pass`, which takes value 1 if the student's average score is above 60% and value 0 if below (indicating that he failed). We are now interested to examine the chances that the student will pass the exam. 
+
+```{r}
+#creating of new variable "Pass"
+mydata$pass<-ifelse(mydata$avg_score>=60,1,0)
+freqdist(mydata$pass)
+```
+
+With a threshold of 60%, the passing rate will be 71.3% (713 students will pass the exam).   
+
+***a) Begin by fit a logistic regression that includes only the variable*** `Prep_Course`***. Use students who have not completed the preparation course as the reference level.***
+```{r}
+#fitting a logistic regression
+mod.log<-glm(pass~prep_course,data=mydata,family=binomial(link="logit"))
+summary(mod.log)
+```
+
+
+***i) Provide the fitted model on the log-odds scale and probability scale.***    
+
+* Log-odds scale:
+The fitted model on the log-odds scale is given by : $ln(\frac{\Pi}{1-\Pi})=0.63063+0.97523PrepCourse_{1}$   
+where $\Pi = P(\hat{Pass} = 1|PrepCourse_{1})$   
+
+
+* Probability scale:   
+The fitted model on the probability scale is given by :
+where $P(\hat{Pass} = 1|PrepCourse_{1})=\frac{exp(0.63063+0.97523PrepCourse_{1})}{1+exp(0.63063+0.97523PrepCourse_{1})}$   
+
+
+***ii) Interpret all of the regression coefficients on an appropriate scale. What is the estimated probability of passing the exam when a student has not completed the preparation course? What about for a student who have completed the preparation course?***  
+
+```{r}
+mod.log$coefficients
+exp(mod.log$coefficients)
+```
+
+
+* $\hat\beta_0=0.6306$ or $exp(\hat\beta_0)=1.8788$: When the variable $PrepCourse_{1}=0$ (i.e. a student has not completed the preparation course), the intercept $\hat\beta_0=0.6306$ represents the estimated log of the odds of having the outcome Pass=1 (by obtaining a score above 60% in the exam or equivalently passing the exam). It is more meaningful to interpret this result on the odds ratio scale by exponentiating $exp(\hat\beta_0)=1.8788$ and say that, the odds of passing the exam when the student has not completed the preparation course is 1.8788. 
+
+* $\hat\beta_1=0.97523$ or $exp(\hat\beta_1)=2.6518$: The interpretation of regression coefficient $\hat\beta_1$ is done with respect to the reference level (students who have not completed the preparation course) on the log odds ratio scale. It is more meaningful to interpret this result on the odds ratio scale by exponentiating the estimated coefficient $exp(\hat\beta_1)=2.6518$ and say that, the odds of passing the exam for a student who have completed the preparation course is 2.6518 times the odds of passing the exam for a student who have not completed the preparation course. Given that this ratio>1, it suggests that the odds are higher for students who have completed the preparation course vs. those who have not.
+
+
+
+The estimated probabilities of passing the exam for students who have not completed the preparation course $PrepCourse_{1}=0$ is 62.53%.  
+
+$ln(\frac{P(\hat{Pass}=1|PrepCourse_{1}=0)}{1-P(\hat{Pass}=1|PrepCourse_{1}=0)})=0.6306$    
+$\frac{P(\hat{Pass}=1|PrepCourse_{1}=0)}{1-P(\hat{Pass}=1|PrepCourse_{1}=0)}=e^{0.6306}=1.8788$    
+$P(\hat{Pass}=1|PrepCourse_{1}=0)=\frac{1.8788}{1+1.8788}=0.62526$   
+
+
+The estimated probabilities of passing the exam for students who have completed the preparation course $PrepCourse_{1}=1$ is 83.28%.  
+
+$ln(\frac{P(\hat{Pass}=1|PrepCourse_{1}=1)}{1-P(\hat{Pass}=1|PrepCourse_{1}=1)})=0.6306+0.9752=1.606$  
+$\frac{P(\hat{Pass}=1|PrepCourse_{1}=1)}{1-P(\hat{Pass}=1|PrepCourse_{1}=1)}=e^{1.606}=4.9821$   
+$P(\hat{Pass}=1|PrepCourse_{1}=1)=\frac{4.9821}{1+4.9821}=0.8328$  
+
+***iii) A student is unsure if enrolling in the preparation course will actually improve his chances of passing the test. Based on the results, what would you recommend? Support your explanation with a statistical test.***
+
+We are interested to test whether $\beta_1$, that is, the coefficient representing the log of the odds ratios between $PrepCourse_{1}=1$ vs $PrepCourse_{1}=0$ (the reference level) is significant in the model. Formally, the hypothesis we are testing are :    
+$H_0:\beta_1=0$  
+$H_1:\beta_1\not=0$  
+
+From the output summary, the result of the Wald's test statistic is z=5.820 with a corresponding p-value of 5.87e-09, which is < $\alpha=0.001$. Therefore, we reject $H_0$ in favor of $H_1$ and conclude that, at any reasonable level of $\alpha$, the log of the odds ratios between a student who has completed the preparation course and a student who has not completed the preparation course is significantly different from 0. This implies that the odds ratios must also be significantly different from 0, so we say state that having completed the preparation course does have a significant effect on the odds of passing the exam. 
+
+Combining this result with the large effect size found earlier in ii), we can observe that enrolling in the preparation course does increase the probability of passing the exam. More specifically, it increases the odds by 2.6518. Therefore, we would recommend the student to enroll in this preparation course.
+
+
+***b) Suppose that now we are interested to investigate the number of subject that a student passes, using the same threshold of 60%. Create an indicator variable*** `total_pass`***, which counts the number of subjects in which he receives a grade of 60% or more.  We are now interested to examine the number of school subjects each student passes***
+
+```{r}
+count<-raw_data
+count$pass_math<-ifelse(raw_data$math.score>=60,1,0)
+count$pass_reading<-ifelse(raw_data$reading.score>=60,1,0)
+count$pass_writing<-ifelse(raw_data$writing.score>=60,1,0)
+count$count_pass<-count$pass_math+count$pass_reading+count$pass_writing
+mydata$total_pass<-count$count_pass
+freqdist(mydata$total_pass)
+```
+
+Looking at the distribution of the new variable `total_pass`, we can observe that 19.2% of students failed all three subjects. There are 7.5% and 14.5% of students who passed only one subject and two subjects respectively. Finally, the proportion of students who passed all three subjects is 58.8%. 
+
+***i) Fit a Poisson regression model using the variables*** `Gender`, `Race.Ethnicity`, `Parent_Educ`, `Lunch` ***and*** `Prep_course`. ***Provide the fitted model on the mean scale.***    
+
+```{r}
+mod.poi<-glm(total_pass~gender+race.ethnicity+parent_educ+lunch+prep_course,data=mydata,family=poisson(link="log"))
+summary(mod.poi)
+```
+
+The fitted model is given by :  
+
+$E(\hat{Total\_pass}|Gender_{male},Race.Ethnicity_{B},Race.Ethnicity_{C},Race.Ethnicity_{D},$  
+$Race.Ethnicity_{E},ParentEduc_{2}, ParentEduc{3},Lunch_{standard},PrepCourse_{1})$    
+$=\hat\lambda=exp(0.28927-0.05418Gender_{male}-0.03204Race.Ethnicity_{B}-0.02786Race.Ethnicity_{C}$  
+$+0.17203Race.Ethnicity_{D}+0.21965Race.Ethnicity_{E}+0.13295ParentEduc_{2}+0.21146 ParentEduc{3}$  
+$+0.37025Lunch_{standard}+0.21032PrepCourse_{1})$  
+
+***ii) Give an interpretation of the intercept in model. ***
+
+The intercept $exp(\beta_0)$ represents the mean of the response variable when all explanatory variables are zeros. In this context, the intercept $exp(0.28927)=1.3355$ is the expected number of subjects passed for a student who is female, from race/ethnicity A, with parents who have completed high school (or some high school), enrolled in the free/reduced lunch plan and has not completed the preparation course. 
+
+***iii) Assess the global significance of the variable*** `Parent_Educ` ***in the model. *** 
+
+```{r,warning=FALSE,message=FALSE}
+library(car)
+Anova(mod.poi, type=3)
+```
+
+We are interested to test the global significance of the variable Parent_Educ, that is, testing whether the coefficients associated with all the levels of Parent_Educ is equal to 0, or at least some coefficients are significantly other than 0. 
+
+$H_0 :\beta_{ParentEduc2}=\beta_{ParentEduc3}=0$   
+$H_1$ : at least one of $\beta_{ParentEduc2}$ or $\beta_{ParentEduc3}\not=0$   
+
+The results from Anova is based on a $\chi^2$ distribution with 2 degree of freedom. We can observe that the test ChiSq=14.028 with a corresponding p-value of 0.000899, which is < $\alpha=0.001$. Therefore, we reject $H_0$ in favor of $H_1$ and conclude that, at least one of $\beta_{ParentEduc2}$ or $\beta_{ParentEduc3}\not=0$. Thus, the variable Parent_Educ is globally significant in the model containing gender, race.ethnicity, lunch and prep_course. In other words, the parents' education level does have an effect on the mean number of subjects passed by the student, holding all other variables constant.   
+
+***iv) Discuss in a few sentences the main assumptions differences between a Poisson and Quasi-Poisson model. What are the benefits or drawbacks of using a Quasi-Poisson model instead of the Poisson model.***  
+
+The Poisson model makes the assumption that the variance is equal to the mean, which makes this model quite restrictive and not always a fair assumption in real-life application, since not all distributions may adhere to this relationship between the variance and the mean. The situation where the variance is greater than the mean is known as Overdispersion (in a Poisson model, the overdispersion parameter=1) and it can be handled with a Quasi-Poisson model. Since a Quasi-Poisson model assumes that the variance is a linear function of the mean, it is a more suitable model to employ for a count response variable when the variance is greater than the mean.
+
+The benefits of a Quasi-Poisson model are its flexibility and its ability to handle overdispersion. It will result in the same estimates for the regression parameters and will also provide a better fit to the data. However, the drawbacks is that this approach is based on a pseudo-likelihood, meaning that the underlying equations used to estimate is not based on a likelihood function from a proper distribution, but rather a "quasi" likelihood function, thus some properties, indices or tests specific to MLE cannot be applied. 
+
+***c. Repeat b) with a Negative Binomial regression model this time.***  
+
+```{r,warning=FALSE,message=FALSE}
+library(MASS)
+mod.nb<-glm.nb(total_pass~gender+race.ethnicity+parent_educ+lunch+prep_course,data=mydata)
+summary(mod.nb)
+```
+
+***i) Compare the Poisson model to the Negative Binomial using a proper statistical test. Would the Poisson model be an adequate simplification of the Negative Binomial model?*** 
+
+```{r}
+-2*as.numeric(logLik(mod.poi))
+-2*as.numeric(logLik(mod.nb))
+lrtstat <- -2*as.numeric(logLik(mod.poi)-logLik(mod.nb))
+lrtstat
+
+pchisq(lrtstat, df = 1, lower.tail = FALSE)/2
+```
+
+To test whether the Poisson model is an adequate simplification of the Negative Binomial model, we have to test the following:    
+$H_0: k = 0$ vs $H_1:k>0$ since the negative binomial model simplifies to the Poisson model when the parameter k=0.  
+
+The result of the LRT = -0.01722744 with an associated p-value = 0.5. Given that this p-value is greater than any reasonable $\alpha$, we fail to reject the null hypothesis that $H_0:k=0$. Thus, the result of this test statistic suggests that the Poisson model is indeed an adequate simplification of the Negative Binomial model.  
+
+***ii) Use the AIC and BIC criterion to compare the Poisson model and Negative Binomial now. Which model is selected by each criterion?*** 
+
+```{r}
+AIC(mod.poi)
+AIC(mod.nb)
+BIC(mod.poi)
+BIC(mod.nb)
+```
+
+Under both approach, a smaller value indicates a better model.  
+Under the AIC, Poisson: 3246.352 < Negative Binomial: 3248.369  
+Under the BIC, Poisson: 3295.43 < Negative Binomial: 3302.355
+
+From the results, we can observe that the Poisson model is selected according to both criteria and is therefore selected as the better model.  
+
+----------------------------------
+
+### Question 3  
+
+
+Consider the distribution Weibull $f(x) = \frac{k}{\lambda}(\frac x\lambda)^{k-1}exp(-(\frac{x}{\lambda})^k), where$  $x\ge 0; \lambda,k\gt0$
+
+***a. Write an expression for the likelihood function.***
+
+for sample $x_1, x_2,…,x_n$ the likelihood function is:
+
+$$\begin{aligned}L(\lambda,k) &= \prod_{i=1}^nf(x_i;\lambda,k)\\
+&= \prod_{i=1}^n\frac{k}{\lambda}(\frac {x_i}\lambda)^{k-1}exp(-(\frac{x_i}{\lambda})^k)\\
+&= (\frac{k}{\lambda^k})^nexp(-\sum_{i=1}^n\frac{x_i^k}{\lambda^k})\prod_{i=1}^nx_i^{k-1} \end{aligned}$$
+
+***b. Write an expression for the log-likelihood function.***
+
+$$
+\begin{aligned}LL(\lambda,k) &= \ln[\prod_{i=1}^nf(x_i)]\\
+&= \ln[(\frac{k}{\lambda^k})^nexp(-\sum_{i=1}^n\frac{x_i^k}{\lambda^k})\prod_{i=1}^nx_i^{k-1}]\\
+&= n\ln{k}-nk\ln{\lambda}-\sum_{i=1}^n\frac{x_i^k}{\lambda^k}+(k-1)\sum_{i=1}^n\ln{x_i} \end{aligned}
+$$
+
+***c. What is the maximum likelihood estimator for*** $k,\lambda$***?***
+
+**For** $\lambda$**:**
+
+$\frac{\partial{\ln{L(k,\lambda)}}}{\partial \lambda} = -\frac{nk}{\lambda} +\frac{k\sum_{i=1}^nx_i^k}{\lambda^{k+1}}$
+
+let $\frac{\partial{\ln{L(k,\lambda)}}}{\partial \lambda} = 0$, it follows:
+
+$$
+\begin{aligned}-\frac{nk}{\lambda} +\frac{k\sum_{i=1}^nx_i^k}{\lambda^{k+1}} &= 0\\
+\frac{\sum_{i=1}^nx_i^k}{n} &= \lambda^k \\
+\Rightarrow       \lambda^* &= (\frac{\sum_{i=1}^nx_i^{k^*}}{n})^{\frac{1}{k^*}} \end{aligned}
+$$
+
+**For k:**
+
+$\frac{\partial{\ln{L(k,\lambda)}}}{\partial k} = \frac nk - n\ln\lambda - \sum_{i=1}^n(\frac{x_i}{\lambda})^k\ln(\frac{x_i}{\lambda}) + \sum_{i=1}^n\ln{x_i}$
+
+let $\frac{\partial{\ln{L(k,\lambda)}}}{\partial k} = 0$ and plug in $\lambda^* = (\frac{\sum_{i=1}^nx_i^{k^*}}{n})^{\frac{1}{k^*}}$
+
+we could have:
+
+$k^* = [\frac{\sum_{i=1}^nx_i^{k^*}\ln{x_i}}{\sum_{i=1}^nx_i^{k^*}}- \frac{\sum_{i=1}^n\ln{x_i}}{n}]^{-1}$
+
+
